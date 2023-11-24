@@ -13,7 +13,7 @@ async fn main() {
         .nest("/", pages::router())
         .nest("/realtime", realtime::router(app_state));
 
-    let duration = Duration::from_millis(250);
+    let duration = Duration::from_millis(500);
     tokio::task::spawn_blocking(move || {
         Snapshot::usage_transmitter(tx, duration)
     });
