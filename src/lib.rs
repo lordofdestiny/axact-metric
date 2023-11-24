@@ -2,19 +2,33 @@ use std::time::Duration;
 
 use serde::Serialize;
 use sysinfo::{CpuExt, System, SystemExt};
-use tokio::sync::broadcast::{self, Sender};
+use tokio::sync::broadcast::Sender;
 
 pub mod pages;
 pub mod realtime;
 
 #[derive(Clone, Serialize)]
+struct CPU {
+    name: String,
+    usage: f64,
+}
+
+#[derive(Clone, Serialize)]
+struct Memory {
+    total: u64,
+    used: u64,
+    free: u64,
+}
+
+#[derive(Clone, Serialize)]
 pub struct Snapshot {
-    cpu: Vec<(String, f32)>,
+    cpus: Vec<CPU>,
+    memory: Memory,
 }
 
 #[derive(Clone)]
 pub struct AppState {
-    pub tx: broadcast::Sender<Snapshot>,
+    pub tx: Sender<Snapshot>,
 }
 
 impl Snapshot {
@@ -22,14 +36,24 @@ impl Snapshot {
         let mut sys = System::new();
         loop {
             sys.refresh_cpu();
-            let usages = sys
-                .cpus()
-                .iter()
-                .map(|cpu| (String::from(cpu.name()), cpu.cpu_usage()))
+            let cpus = sys.cpus().iter()
+                .map(|cpu| CPU {
+                    name: cpu.name().to_string(),
+                    usage: cpu.cpu_usage() as f64,
+                })
                 .collect();
 
-            let snapshot = Snapshot { cpu: usages };
-            let _ = tx.send(snapshot);
+            sys.refresh_memory();
+            let memory = Memory {
+                total: sys.total_memory(),
+                used: sys.used_memory(),
+                free: sys.free_memory(),
+            };
+
+            let _ = tx.send(Snapshot {
+                cpus,
+                memory
+            });
 
             std::thread::sleep(interval);
         }
